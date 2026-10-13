@@ -1,0 +1,273 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Chaos Mega Draft Picker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Rubik:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* Layout: one centered column. Title, 6x6 board, generate button, readout of the 8 picks.
+     Deliberately single-look (dark arcade) so it stays dark in every viewer theme. */
+  :root {
+    --bg: #0b0b0e;
+    --panel: #14141a;
+    --tile: #2b2d33;
+    --tile-edge: #1b1c21;
+    --tile-text: #6d717c;
+    --pink: #ff2e9a;
+    --pink-hot: #ff6cc1;
+    --pink-ink: #1a0212;
+    --fg: #ecedf2;
+    --muted: #8b8f9b;
+    --font-display: "Lilita One", "Arial Black", Impact, sans-serif;
+    --font-body: "Rubik", system-ui, -apple-system, "Segoe UI", sans-serif;
+    color-scheme: dark;
+  }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-body);
+    font-size: 16px;
+    padding-inline: 16px;
+    padding-block: 24px;
+    display: flex;
+    justify-content: center;
+  }
+  .app {
+    width: 100%;
+    max-width: 560px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    align-items: stretch;
+  }
+  header { display: flex; flex-direction: column; gap: 4px; }
+  h1 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: clamp(1.7rem, 6vw, 2.4rem);
+    letter-spacing: 0.02em;
+    line-height: 1.05;
+    text-wrap: balance;
+  }
+  h1 span { color: var(--pink); text-shadow: 0 0 18px rgba(255,46,154,.55); }
+  .sub {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .board {
+    background: var(--panel);
+    border: 1px solid #23242b;
+    border-radius: 16px;
+    padding: 10px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .tile {
+    aspect-ratio: 1;
+    min-width: 0;
+    display: grid;
+    place-items: center;
+    background: var(--tile);
+    border: 1px solid var(--tile-edge);
+    border-radius: 10px;
+    color: var(--tile-text);
+    font-family: var(--font-display);
+    font-size: clamp(0.8rem, 3.4vw, 1.3rem);
+    font-variant-numeric: tabular-nums;
+    user-select: none;
+    transition: background .18s ease, color .18s ease, box-shadow .18s ease, transform .18s ease, border-color .18s ease;
+  }
+  .tile.flick {
+    border-color: var(--pink);
+    box-shadow: inset 0 0 10px rgba(255,46,154,.45);
+    color: var(--pink-hot);
+  }
+  .tile.on {
+    background: var(--pink);
+    border-color: var(--pink-hot);
+    color: var(--pink-ink);
+    transform: scale(1.04);
+    box-shadow: 0 0 6px rgba(255,46,154,.9), 0 0 22px rgba(255,46,154,.65), 0 0 44px rgba(255,46,154,.35);
+  }
+
+  .controls { display: flex; flex-direction: column; gap: 14px; align-items: stretch; }
+  button#go {
+    font-family: var(--font-display);
+    font-size: 1.35rem;
+    letter-spacing: 0.04em;
+    padding: 14px 20px;
+    border: 2px solid var(--pink);
+    border-radius: 12px;
+    background: transparent;
+    color: var(--pink);
+    cursor: pointer;
+    text-shadow: 0 0 12px rgba(255,46,154,.6);
+    box-shadow: 0 0 14px rgba(255,46,154,.35), inset 0 0 14px rgba(255,46,154,.18);
+    transition: background .15s ease, color .15s ease, box-shadow .15s ease, transform .1s ease;
+  }
+  button#go:hover:not(:disabled) { background: var(--pink); color: var(--pink-ink); text-shadow: none; }
+  button#go:active:not(:disabled) { transform: translateY(1px) scale(.99); }
+  button#go:disabled { opacity: .55; cursor: progress; }
+  button#go:focus-visible { outline: 3px solid var(--fg); outline-offset: 3px; }
+
+  .readout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    min-height: 40px;
+  }
+  .readout .label {
+    color: var(--muted);
+    font-size: 0.8rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-right: 4px;
+  }
+  .chip {
+    font-family: var(--font-display);
+    font-variant-numeric: tabular-nums;
+    min-width: 40px;
+    text-align: center;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255,46,154,.14);
+    border: 1px solid rgba(255,46,154,.55);
+    color: var(--pink-hot);
+  }
+  .hint { color: var(--muted); font-size: .9rem; }
+  .count { margin-left: auto; color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tile, button#go { transition: none; }
+    .tile.on { transform: none; }
+  }
+</style>
+
+<main class="app">
+  <header>
+    <h1>Chaos <span>Mega Draft</span> Picker</h1>
+    <p class="sub">8 random cards from a 6 x 6 board</p>
+  </header>
+
+  <section class="board" aria-label="Card board, 36 tiles">
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <section class="controls">
+    <button id="go" type="button">Generate 8 cards</button>
+    <div class="readout" id="readout" aria-live="polite">
+      <span class="hint">Tiles are numbered 1 to 36, left to right, top to bottom. Hit generate to draw your 8.</span>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  var ROWS = 6, COLS = 6, TOTAL = ROWS * COLS, PICKS = 8;
+  var grid = document.getElementById('grid');
+  var btn = document.getElementById('go');
+  var readout = document.getElementById('readout');
+  var tiles = [];
+  var rounds = 0;
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  for (var i = 1; i <= TOTAL; i++) {
+    var t = document.createElement('div');
+    t.className = 'tile';
+    t.textContent = i;
+    t.setAttribute('role', 'img');
+    var r = Math.ceil(i / COLS), c = ((i - 1) % COLS) + 1;
+    t.setAttribute('aria-label', 'Tile ' + i + ', row ' + r + ', column ' + c);
+    grid.appendChild(t);
+    tiles.push(t);
+  }
+
+  // Unbiased random int in [0, n) using crypto when available
+  function randInt(n) {
+    if (window.crypto && crypto.getRandomValues) {
+      var max = Math.floor(4294967296 / n) * n, x = new Uint32Array(1);
+      do { crypto.getRandomValues(x); } while (x[0] >= max);
+      return x[0] % n;
+    }
+    return Math.floor(Math.random() * n);
+  }
+
+  // Fisher-Yates over 1..36, take first 8
+  function pick() {
+    var a = [];
+    for (var i = 1; i <= TOTAL; i++) a.push(i);
+    for (var j = a.length - 1; j > 0; j--) {
+      var k = randInt(j + 1);
+      var tmp = a[j]; a[j] = a[k]; a[k] = tmp;
+    }
+    return a.slice(0, PICKS);
+  }
+
+  function clearAll() {
+    tiles.forEach(function (t) { t.classList.remove('on', 'flick'); });
+  }
+
+  function sleep(ms) { return new Promise(function (res) { setTimeout(res, ms); }); }
+
+  function showReadout(sel) {
+    var sorted = sel.slice().sort(function (a, b) { return a - b; });
+    readout.innerHTML = '';
+    var l = document.createElement('span');
+    l.className = 'label';
+    l.textContent = 'Picked';
+    readout.appendChild(l);
+    sorted.forEach(function (n) {
+      var c = document.createElement('span');
+      c.className = 'chip';
+      c.textContent = n;
+      readout.appendChild(c);
+    });
+    var cnt = document.createElement('span');
+    cnt.className = 'count';
+    cnt.textContent = 'Draw #' + rounds;
+    readout.appendChild(cnt);
+  }
+
+  var busy = false;
+  async function generate() {
+    if (busy) return;
+    busy = true;
+    btn.disabled = true;
+    clearAll();
+
+    if (!reduce) {
+      // quick shuffle flicker so each draw feels like a roll
+      for (var f = 0; f < 7; f++) {
+        clearAll();
+        pick().forEach(function (n) { tiles[n - 1].classList.add('flick'); });
+        await sleep(70);
+      }
+      clearAll();
+    }
+
+    var sel = pick();
+    for (var s = 0; s < sel.length; s++) {
+      tiles[sel[s] - 1].classList.add('on');
+      if (!reduce) await sleep(85);
+    }
+    rounds++;
+    showReadout(sel);
+    btn.textContent = 'Regenerate';
+    btn.disabled = false;
+    busy = false;
+  }
+
+  btn.addEventListener('click', generate);
+})();
+</script>
+
+</body></html>
